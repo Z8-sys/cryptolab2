@@ -137,7 +137,7 @@ class Trent:
     def _process_setup_request(self, alice_id, bob_id, alice_public_key, bob_public_key, alice_host, alice_port, bob_host, bob_port):
         """Шаг 2: Трент генерирует ответ для Алисы"""
         timestamp = int(time.time())
-        lifetime = 3600
+        lifetime = 60
         session_key = self.crypto.generate_session_key()
         
         message_for_alice = json.dumps({

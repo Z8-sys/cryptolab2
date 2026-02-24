@@ -129,7 +129,16 @@ class Bob:
             self.alice_port = trent_message.get('alice_port', 10001)
             
             print(f"[{self.bob_id}] Сессионный ключ получен")
-            print(f"[{self.bob_id}] Timestamp={timestamp}, Lifetime={lifetime}")
+            print(f"[{self.bob_id}] Время создания ключа: {timestamp}")
+            print(f"[{self.bob_id}] Время жизни: {lifetime} сек")
+            
+            current_time = int(time.time())
+            time_elapsed = current_time - timestamp
+            
+            if time_elapsed > lifetime:
+                raise Exception(f"Ключ истек! Прошло {time_elapsed} сек, а время жизни {lifetime} сек")
+            
+            print(f"[{self.bob_id}] Ключ актуален (прошло {time_elapsed} сек)")
             
             print(f"[{self.bob_id}] Шаг 2: Расшифровка сообщения от Алисы (AES)")
             
@@ -137,9 +146,16 @@ class Bob:
             alice_message = json.loads(decrypted_alice_auth)
             
             print(f"[{self.bob_id}] Получено подтверждение от {alice_message['alice_id']}")
-            print(f"[{self.bob_id}] Время Алисы: {alice_message['timestamp']}")
             
-            response_timestamp = alice_message['timestamp'] + 1
+            alice_timestamp = alice_message['timestamp']
+            alice_time_elapsed = current_time - alice_timestamp
+            
+            if alice_time_elapsed > 60:
+                raise Exception(f"Сообщение от Алисы слишком старое! {alice_time_elapsed} сек")
+            
+            print(f"[{self.bob_id}] Время Алисы: {alice_timestamp} (отставание {alice_time_elapsed} сек)")
+            
+            response_timestamp = alice_timestamp + 1
             response_message = json.dumps({
                 'timestamp': response_timestamp
             }).encode()

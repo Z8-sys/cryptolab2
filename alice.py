@@ -25,6 +25,7 @@ class Alice:
         self.encrypted_for_bob = None
         self.server_socket = None
         self.bob_socket = None
+        self.last_timestamp = None
         
     def get_public_key_bytes(self):
         """Получает публичный ключ в формате PEM"""
@@ -119,33 +120,46 @@ class Alice:
         """Алиса отправляет Бобу сообщение"""
         print(f"[{self.alice_id}] Шаг 3: Отправка сообщения Бобу")
         
-        try:
-            self.bob_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.bob_socket.connect((self.bob_host, self.bob_port))
-            
-            timestamp = int(time.time())
-            alice_auth = json.dumps({
-                'alice_id': self.alice_id,
-                'timestamp': timestamp
-            }).encode()
-            
-            encrypted_auth = self.crypto.encrypt_aes(self.session_key, alice_auth)
-            
-            message = {
-                'type': 'auth_message',
-                'encrypted_for_bob': base64.b64encode(self.encrypted_for_bob).decode(),
-                'encrypted_alice_auth': base64.b64encode(encrypted_auth).decode()
-            }
-            
-            self.bob_socket.sendall(json.dumps(message).encode())
-            
-            response_data = self.bob_socket.recv(1024)
-            response = json.loads(response_data.decode())
-            
-            return response
-        except Exception as e:
-            print(f"[{self.alice_id}] Ошибка подключения к Bob: {e}")
-            return None
+        max_retries = 7
+        retry_delay = 10
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                self.bob_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.bob_socket.connect((self.bob_host, self.bob_port))
+                
+                self.last_timestamp = int(time.time())
+                alice_auth = json.dumps({
+                    'alice_id': self.alice_id,
+                    'timestamp': self.last_timestamp
+                }).encode()
+                
+                encrypted_auth = self.crypto.encrypt_aes(self.session_key, alice_auth)
+                
+                message = {
+                    'type': 'auth_message',
+                    'encrypted_for_bob': base64.b64encode(self.encrypted_for_bob).decode(),
+                    'encrypted_alice_auth': base64.b64encode(encrypted_auth).decode()
+                }
+                
+                self.bob_socket.sendall(json.dumps(message).encode())
+                print(f"[{self.alice_id}] Сообщение отправлено (попытка {attempt}/{max_retries}, время: {self.last_timestamp})")
+                
+                response_data = self.bob_socket.recv(1024)
+                response = json.loads(response_data.decode())
+                
+                return response
+            except Exception as e:
+                print(f"[{self.alice_id}] Ошибка попытки {attempt}/{max_retries}: {e}")
+                
+                if attempt < max_retries:
+                    print(f"[{self.alice_id}] Повторная попытка через {retry_delay} сек...")
+                    time.sleep(retry_delay)
+                else:
+                    print(f"[{self.alice_id}] Все попытки исчерпаны!")
+                    return None
+        
+        return None
     
     def step4_verify_bob(self, response):
         """Алиса проверяет ответ от Боба"""
@@ -156,8 +170,13 @@ class Alice:
             decrypted = self.crypto.decrypt_aes(self.session_key, encrypted_timestamp)
             message_dict = json.loads(decrypted)
             
-            timestamp = message_dict['timestamp']
-            print(f"[{self.alice_id}] Проверка пройдена, timestamp+1={timestamp}")
+            bob_timestamp = message_dict['timestamp']
+            expected_timestamp = self.last_timestamp + 1
+            
+            if bob_timestamp != expected_timestamp:
+                raise Exception(f"Неверная временная метка! Ожидалась {expected_timestamp}, получена {bob_timestamp}")
+            
+            print(f"[{self.alice_id}] Проверка пройдена! Боб подтвердил время: {bob_timestamp}")
             print(f"[{self.alice_id}] Аутентификация успешна!\n")
             return True
         except Exception as e:
