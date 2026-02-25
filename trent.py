@@ -10,9 +10,9 @@ from crypto_protocol import CryptoProtocol
 class Trent:
     """Trusted Third Party - доверенный центр распределения ключей"""
     
-    def __init__(self, port=9999):
+    def __init__(self, port=9999, host='localhost'):
         self.port = port
-        self.host = 'localhost'
+        self.host = host
         self.server_socket = None
         self.crypto = CryptoProtocol()
         self.private_key, self.public_key = self.crypto.generate_rsa_keys()
@@ -185,5 +185,5 @@ class Trent:
 
 
 if __name__ == '__main__':
-    trent = Trent(port=9999)
+    trent = Trent(port=9999, host = "localhost")
     trent.start()
